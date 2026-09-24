@@ -17,7 +17,7 @@ html,body{height:100%}
 body{margin:0;background:var(--abyss);color:var(--foam);font-family:var(--font);font-size:18px;overflow:hidden;-webkit-tap-highlight-color:transparent}
 button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;padding:0}
 button:focus-visible,input:focus-visible,a:focus-visible{outline:2px solid var(--cyan);outline-offset:3px}
-#app{position:fixed;inset:0;overflow:hidden;user-select:none;-webkit-user-select:none}
+#app{position:fixed;inset:0;overflow:hidden;overflow:clip;user-select:none;-webkit-user-select:none}
 canvas{display:block}
 #sea{position:absolute;inset:0;width:100%;height:100%;image-rendering:pixelated;image-rendering:crisp-edges}
 #fx{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
@@ -1279,6 +1279,7 @@ document.addEventListener('keydown',e=>{
   if(e.key==='Escape'){['#howto','#menu'].forEach(s=>{$(s).hidden=true;});}
 });
 window.addEventListener('resize',resize);
+app.addEventListener('scroll',()=>{if(app.scrollTop||app.scrollLeft){app.scrollTop=0;app.scrollLeft=0;}});
 const vv=window.visualViewport;
 function onVV(){if(!vv)return;KB=Math.max(0,Math.round(window.innerHeight-vv.height-vv.offsetTop));app.style.setProperty('--kb',KB+'px');app.classList.toggle('kb',KB>40);if(S.phase==='preview'||S.phase==='answering')cam.target=promptCam();}
 if(vv){vv.addEventListener('resize',onVV);vv.addEventListener('scroll',onVV);}
