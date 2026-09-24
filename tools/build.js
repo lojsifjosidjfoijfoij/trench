@@ -38,6 +38,7 @@ const problems = [];
 const warn = [];
 const seenQ = new Map();
 let totalAnswers = 0;
+let dropped = 0;
 function cleanPrompt(p, where) {
   if (!p || typeof p.q !== 'string' || !p.r) { problems.push(`${where}: missing q or r`); return p; }
   const nq = norm(p.q);
@@ -69,7 +70,10 @@ function cleanPrompt(p, where) {
     count++;
   } else warn.push(`${where}: "${p.q}" has no Pearl`);
   for (const k of TIER_KEYS) {
-    const items = String(p[k] || '').split('|').map(x => x.trim()).filter(Boolean);
+    const rawItems = String(p[k] || '').split('|');
+    // drop working notes: entries marked unsure ("Foo? ") or duplicates ("Foo dup")
+    const items = rawItems.filter(x => !/\?\s+$/.test(x) && !/\sdup\s*$/.test(x)).map(x => x.trim()).filter(Boolean);
+    dropped += rawItems.length - items.length - rawItems.filter(x => !x.trim()).length;
     const kept = [];
     for (const item of items) {
       const names = item.split('~').map(x => x.trim()).filter(Boolean);
@@ -95,6 +99,7 @@ const cleanSets = sets.map((set, i) => {
 });
 
 if (warn.length) console.log('Warnings:\n  ' + warn.join('\n  '));
+if (dropped) console.log(`Dropped ${dropped} unsure/duplicate working entries.`);
 if (problems.length) { console.error('Problems:\n  ' + problems.join('\n  ')); process.exit(1); }
 
 // ---- write docs/
