@@ -500,7 +500,7 @@ for(const [m,txt,side,major] of AMBIENT){const d=document.createElement('div');d
 $('#mascotImg').src=pixelIcon('🦐','#ff5d8f',16);
 
 /* ================= data layer (db / user / sample) ================= */
-const Data={static:false,db:null,user:null,uid:null,sample:null,perms:null,index:{dives:{},pool:{}},profile:null};
+const Data={static:false,spool:[],db:null,user:null,uid:null,sample:null,perms:null,index:{dives:{},pool:{}},profile:null};
 let profileWrite=Promise.resolve();
 const emptyProfile=()=>({daily:{},arch:{},unl:{n:0,best:0,total:0},seen:{},progress:null});
 function mergeProfiles(a,b){
@@ -552,6 +552,9 @@ async function getDoc(ref){
 async function initStatic(){
   if(Data.db)return;
   try{const r=await fetch('dives/index.json',{cache:'no-cache'});if(r.ok){const j=await r.json();if(j&&j.dives){Data.static=true;Data.index={dives:j.dives,pool:{}};}}}catch(e){}
+  if(!Data.static)return;
+  // unlimited-only prompts that never show up as a daily
+  try{const r=await fetch('pool.json',{cache:'no-cache'});if(r.ok){const j=await r.json();if(j&&Array.isArray(j.prompts))Data.spool=j.prompts.filter(p=>p&&typeof p.q==='string');}}catch(e){}
 }
 async function fetchDive(key){
   if(!Data.db){const d=await getDoc('dives/'+key);return validDive(d)?d.prompts:null;}
@@ -671,6 +674,7 @@ function unlimitedCandidates(){
   const c=[],ids=new Set();
   const add=(q,from,ref,i)=>{const id=hashStr(q);if(ids.has(id)||todayIds.has(id))return;ids.add(id);c.push({id,from,ref,i});};
   SEED_BANK.forEach((e,i)=>add(e.q,'bank',null,i));
+  Data.spool.forEach((e,i)=>add(e.q,'spool',null,i));
   for(const [bid,v] of Object.entries(Data.index.pool||{}))(v.qs||[]).forEach((q,i)=>add(q,'pool','pool/'+bid,i));
   for(const [d,v] of Object.entries(Data.index.dives||{}))if(d<today)(v.qs||[]).forEach((q,i)=>add(q,'dive','dives/'+d,i));
   return c;
@@ -696,11 +700,14 @@ async function ensurePool(){
 async function backgroundCharting(){await ensureTomorrow();await ensurePool();}
 async function buildUnlimited(){
   const c=unlimitedCandidates();
-  const unseen=shuffle(c.filter(x=>!Data.profile.seen[x.id])),seen=shuffle(c.filter(x=>Data.profile.seen[x.id]));
-  const picks=unseen.concat(seen).slice(0,ROUNDS);
+  // never-played prompts first; after that, the ones played longest ago (seen holds a timestamp, legacy 1 = oldest)
+  const seenAt=x=>+Data.profile.seen[x.id]||0;
+  const unseen=shuffle(c.filter(x=>!seenAt(x))),seen=shuffle(c.filter(x=>seenAt(x))).sort((a,b)=>seenAt(a)-seenAt(b));
+  const picks=shuffle(unseen.concat(seen).slice(0,ROUNDS));
   const docs={};const prompts=[];
   for(const p of picks){
     if(p.from==='bank'){prompts.push(SEED_BANK[p.i]);continue;}
+    if(p.from==='spool'){prompts.push(Data.spool[p.i]);continue;}
     if(!(p.ref in docs))docs[p.ref]=await getDoc(p.ref);
     const d=docs[p.ref];const pr=d&&d.prompts&&d.prompts[p.i];
     prompts.push(pr&&pr.q?pr:null);
@@ -763,7 +770,7 @@ async function startDive(mode,dive,label,resume){
     S.results=resume.results.slice();S.round=S.results.length;
     S.score=S.results.reduce((a,r)=>a+r.score,0);S.depth=S.score*10;S.visDepth=S.depth;scoreShown=S.score;hud.score.textContent=S.score;
   }
-  dive.sheets.forEach(s=>{Data.profile.seen[s.id]=1;});
+  if(!resume){const now=Date.now();dive.sheets.forEach(s=>{Data.profile.seen[s.id]=now;});}
   if(mode==='unlimited'&&!resume){Data.profile.unl.n=(Data.profile.unl.n||0)+1;}
   saveProfile();saveProgress();
   $('#titleBlock').style.opacity='0';

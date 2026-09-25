@@ -32,6 +32,11 @@ const sets = [];
 global.add = set => sets.push(set);
 const setDir = path.join(ROOT, 'sets');
 for (const f of fs.readdirSync(setDir).filter(f => f.endsWith('.js')).sort()) require(path.join(setDir, f));
+// unlimited-only prompts: sets/pool/*.js call pool([...any number of prompts])
+const poolPrompts = [];
+global.pool = arr => poolPrompts.push(...arr);
+const poolDir = path.join(setDir, 'pool');
+if (fs.existsSync(poolDir)) for (const f of fs.readdirSync(poolDir).filter(f => f.endsWith('.js')).sort()) require(path.join(poolDir, f));
 
 // ---- validate
 const problems = [];
@@ -97,6 +102,8 @@ const cleanSets = sets.map((set, i) => {
   if (!Array.isArray(set) || set.length !== 7) problems.push(`set ${i}: has ${set && set.length} prompts, needs 7`);
   return set.map((p, j) => cleanPrompt(p, `set ${i} #${j + 1}`));
 });
+const dailyAnswers = totalAnswers;
+const cleanPool = poolPrompts.map((p, j) => cleanPrompt(p, `pool #${j + 1}`));
 
 if (warn.length) console.log('Warnings:\n  ' + warn.join('\n  '));
 if (dropped) console.log(`Dropped ${dropped} unsure/duplicate working entries.`);
@@ -112,6 +119,7 @@ cleanSets.forEach((prompts, i) => {
   index.dives[date] = { n: i + 1, qs: prompts.map(p => p.q) };
 });
 fs.writeFileSync(path.join(DOCS, 'dives', 'index.json'), JSON.stringify(index));
+fs.writeFileSync(path.join(DOCS, 'pool.json'), JSON.stringify({ prompts: cleanPool }));
 
 const page = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
 const head = `<!doctype html>
@@ -141,4 +149,5 @@ fs.writeFileSync(path.join(DOCS, 'manifest.webmanifest'), JSON.stringify({
 }, null, 2));
 
 const last = addDays(EPOCH, cleanSets.length - 1);
-console.log(`Built ${cleanSets.length} daily dives (${cleanSets.length * 7} prompts, ${totalAnswers} answers): ${EPOCH} → ${last}`);
+console.log(`Built ${cleanSets.length} daily dives (${cleanSets.length * 7} prompts, ${dailyAnswers} answers): ${EPOCH} → ${last}`);
+console.log(`Unlimited-only pool: ${cleanPool.length} prompts (${totalAnswers - dailyAnswers} answers) + ${window.SEED_BANK.length} bank prompts`);
